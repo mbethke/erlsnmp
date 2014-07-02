@@ -33,12 +33,7 @@ main(Args) ->
     start_manager(),
     ok = snmpm:register_agent(snmp_user, "localhost", Options),
     Cfg = expand_config(Config),
-    %query([1,3,6,1,2,1,1,3,0]).
-    query(lists:map(
-            fun(Arg) -> [list_to_integer(N) || N <- string:tokens(Arg, ".")] end,
-            string:tokens(Args," ")
-        )
-    ).
+    orddict:fold(fun(_, OIDs, _) -> query(OIDs) end, 0, Cfg).
 
 % Generate an expanded config that uses orddicts
 expand_config(C) ->
@@ -55,9 +50,15 @@ expand_config(C) ->
     
 get_host_oids(H=#host{}, Classes) ->
     case orddict:find(H#host.class, Classes) of
-        {ok, Oids} -> Oids;
+        {ok, Oids} -> oids_to_int(Oids);
         error -> throw(invalid_config)
     end.
+
+oids_to_int(OIDs) ->
+    lists:map(
+        fun(Arg) -> [ list_to_integer(N) || N <- string:tokens(Arg, ".") ] end,
+        OIDs
+    ).
 
 start_manager() ->
     try snmpm:start() of
