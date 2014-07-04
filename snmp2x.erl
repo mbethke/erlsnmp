@@ -3,17 +3,11 @@
 -export([main/1]).
 
 main(Args) ->
-    Options = [
-        {engine_id, "engine"},
-        {community, "public"},
-        {version, v2},
-        {address, "localhost"},
-        {timeout, 2000}
-    ],
     start_manager(),
-    ok = snmpm:register_agent(snmp_user, "localhost", Options),
-    Cfg = snmp2x_config:get(),
-    orddict:fold(fun(_, OIDs, _) -> query(OIDs) end, 0, Cfg).
+    Cfg = snmp2x_config:get(Args),
+    register_snmp_agents(Cfg),
+    run_queries(Cfg),
+    ok.
 
 start_manager() ->
     try snmpm:start() of
@@ -27,9 +21,25 @@ start_manager() ->
     end,
     snmpm:register_user(snmp_user, snmp_user, undefined).
 
-query(Args) ->
-    case snmpm:async_get(snmp_user, "localhost", Args) of
+run_queries(Cfg) ->
+    orddict:fold(fun(Host, OIDs, _) -> query(Host, OIDs) end, 0, Cfg).
+
+query(Host, OIDs) ->
+    case snmpm:async_get(snmp_user, Host, OIDs) of
         {ok, ReqId} -> ReqId;
         {error, Reason} -> throw(snmpm:format_reason(Reason))
     end.
     
+register_snmp_agents(Cfg) ->
+    orddict:fold(fun(Host, _, _) -> register_snmp_agent(Host) end, 0, Cfg).
+
+register_snmp_agent(Host) ->
+    Options = [
+        {engine_id, "engine"},
+        {community, "public"},
+        {version, v2},
+        {address, Host},
+        {timeout, 2000}
+    ],
+    ok = snmpm:register_agent(snmp_user, Host, Options).
+
