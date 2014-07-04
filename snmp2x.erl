@@ -1,6 +1,6 @@
 -module(snmp2x).
 
--export([main/1]).
+-export([main/1, host_process/1]).
 
 main(Args) ->
     start_manager(),
@@ -22,7 +22,15 @@ start_manager() ->
     snmpm:register_user(snmp_user, snmp_user, undefined).
 
 run_queries(Cfg) ->
-    orddict:fold(fun(Host, OIDs, _) -> query(Host, OIDs) end, 0, Cfg).
+    orddict:fold(fun(Host, OIDs, _) -> spawn_host_proc(Host, OIDs) end, 0, Cfg).
+
+spawn_host_proc(Host, OIDs) ->
+    spawn_link(?MODULE, host_process, [{Host, OIDs}]).
+
+host_process(S={Host,OIDs}) ->
+    query(Host, OIDs),
+    timer:sleep(3000),
+    host_process(S).
 
 query(Host, OIDs) ->
     case snmpm:async_get(snmp_user, Host, OIDs) of
@@ -41,5 +49,5 @@ register_snmp_agent(Host) ->
         {address, Host},
         {timeout, 2000}
     ],
-    ok = snmpm:register_agent(snmp_user, Host, Options).
+    snmpm:register_agent(snmp_user, Host, Options).
 
